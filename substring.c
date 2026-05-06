@@ -1,76 +1,125 @@
 // assignment 2
-#include <stdlib.h>
 #include <stdio.h>
-#include <string.h>
+#include <stdlib.h>
 #include <pthread.h>
 
-#define MAX 1024
-#define BUFFER 5
+#define BUFFER_SIZE 5
 
-char buffer[BUFFER];
-int total = 0;
-int n1,n2;
-char *s1,*s2;
+char buffer[BUFFER_SIZE];
+int in = 0;   // producer 
+int out = 0;  // consumer 
+int count = 0; // items in buffer
+
+pthread_mutex_t mutex;
+pthread_cond_t not_full;  
+pthread_cond_t not_empty; 
+
 FILE *fp;
 
-int readf()
+void* producer(void* arg) 
 {
-	if((fp=fopen("strings.txt", "r"))==NULL)
+    char ch;
+    
+    fp = fopen("message.txt", "r");
+    if (fp == NULL) 
 	{
-		printf("ERROR: can't open string.txt!\n");
-		return 0;
-	}
-	s1=(char *)malloc(sizeof(char)*MAX);
-	if(s1==NULL){
-		printf("ERROR: Out of memory!\n");
-		return -1;
-	}
-	s2=(char *)malloc(sizeof(char)*MAX);
-	if(s2==NULL){
-		printf("ERROR: Out of memory\n");
-		return -1;
-	}
-	/*read s1 s2 from the file*/
-	s1=fgets(s1, MAX, fp);
-	s2=fgets(s2, MAX, fp);
-	n1=strlen(s1);  /*length of s1*/
-	n2=strlen(s2)-1; /*length of s2*/
-	if(s1==NULL || s2==NULL || n1<n2)  /*when error exit*/
-		return -1;
-
-	return 1;
+        printf("Error opening file\n");
+        return NULL;
+    }
+    
+    while ((ch = fgetc(fp)) != EOF) 
+	{
+        pthread_mutex_lock(&mutex);
+        
+        // if buffer is full wait till consumer does its thing
+        while (count == BUFFER_SIZE) 
+		{
+            pthread_cond_wait(&not_full, &mutex);
+        }
+        
+        // add char to buffer
+        buffer[in] = ch;
+        in = (in + 1) % BUFFER_SIZE;
+        count++;
+        
+        // buffer isnt empty
+        pthread_cond_signal(&not_empty);
+        pthread_mutex_unlock(&mutex);
+    }
+    
+    fclose(fp);
+    
+    pthread_mutex_lock(&mutex);
+    while (count == BUFFER_SIZE) 
+	{
+        pthread_cond_wait(&not_full, &mutex);
+    }
+    buffer[in] = EOF;
+    in = (in + 1) % BUFFER_SIZE;
+    count++;
+    pthread_cond_signal(&not_empty);
+    pthread_mutex_unlock(&mutex);
+    
+    return NULL;
 }
 
-int num_substring(void)
+void* consumer(void* arg) 
 {
-	int i,j,k;
-	int count;
+    char ch;
+    
+    while (1) 
+	{
+        pthread_mutex_lock(&mutex);
+        
+        // makes sure its empty b4 consuming
+        while (count == 0) 
+		{
+            pthread_cond_wait(&not_empty, &mutex);
+        }
+        
+        // remove char
+        ch = buffer[out];
+        out = (out + 1) % BUFFER_SIZE;
+        count--;
+        
+        // buffer isnt full
+        pthread_cond_signal(&not_full);
+        
+        pthread_mutex_unlock(&mutex);
+        
+        if (ch == EOF) 
+		{
+            break;
+        }
 
-	for (i = 0; i <= (n1-n2); i++)
-	{   
-		count=0;
-		for(j = i,k = 0; k < n2; j++,k++)
-		{   
-			if (*(s1+j)!=*(s2+k)){
-				break;
-			}
-			else
-				count++;
-			if(count==n2)    
-				total++;		                         
-		}
-	}
-	return total;
+		// print out char by char, more visual idea of whats going on
+        printf("%c\n", ch);
+        fflush(stdout);
+    }
+    
+    return NULL;
 }
 
-int main(int argc, char *argv[])
+int main() 
 {
-	int count;
- 
-	readf();
-	count = num_substring();
- 	printf("The number of substrings is: %d\n", count);
-	return 0;
+    pthread_t prod_thread, cons_thread;
+    
+    pthread_mutex_init(&mutex, NULL);
+    pthread_cond_init(&not_full, NULL);
+    pthread_cond_init(&not_empty, NULL);
+    
+    pthread_create(&prod_thread, NULL, producer, NULL);
+    pthread_create(&cons_thread, NULL, consumer, NULL);
+    
+    pthread_join(prod_thread, NULL);
+    pthread_join(cons_thread, NULL);
+    
+    pthread_mutex_destroy(&mutex);
+    pthread_cond_destroy(&not_full);
+    pthread_cond_destroy(&not_empty);
+    
+    printf("\n");
+    return 0;
 }
 
 
