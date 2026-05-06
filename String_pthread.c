@@ -1,4 +1,4 @@
-
+// assignment 1
 #include <pthread.h>
 #include <stdlib.h>
 #include <stdio.h>
@@ -9,7 +9,7 @@
 
 void *sub_string(void *);
 int readf(FILE *fp);
-int total=0;
+int total=0; // number of matches found
 int nlocal,n1,n2;
 char *s1,*s2;
 FILE *fp;
@@ -23,7 +23,9 @@ int main(int argc, char *argv[])
 	pthread_mutex_init(&total_lock,NULL);
 	readf(fp);
 	for(i=0;i<NUM_THREADS;i++){
-		rc=pthread_create(&threads[i],NULL,sub_string,(void *)i);
+		int *arg = malloc(sizeof(int));
+		*arg = i;
+		rc=pthread_create(&threads[i],NULL,sub_string,arg);
 		if (rc){
 			printf("ERROR: return error from pthread_create() is %d\n", rc);
 			exit(-1);
@@ -72,7 +74,49 @@ int readf(FILE *fp)
 void *sub_string(void *threadid) 	/*each process searches in the string with the step of nprocs until it reach or beyond*/ 
 	/*the (n1-n2)th char which is the last possible beginning of the substring*/
 {
+	// 1 -> [0 ... n/4)
+	// 2 -> [n/4...n/2)
+	// 3-> [n/2...3n/4)
+	// 4 -> [3n/4...n)
+	
+	int pos = *(int*)threadid;
+	int start = pos*nlocal;
+	int end = start+nlocal-1;
+	int sub_count = 0;
+	free(threadid);
+	
+	// if not even string
+	if(pos == NUM_THREADS -1)
+	{
+		end = n1-n2;
+	}
 
+	int found;
+	for (int i = start;i<= end && i<=(n1-n2);i++)
+	{
+		int found = 1;
+		// compare
+		for(int k = 0; k<n2;k++)
+		{
+			if(s1[i+k]!= s2[k])
+			{
+				found = 0;
+				break;
+			}
+		}
+	}
+
+	if(found)
+	{
+		sub_count++;
+	}
+
+	// enter CR to update counter for whole string
+	pthread_mutex_trylock(&total_lock);
+	total += sub_count;
+	pthread_mutex_unlock(&total_lock);
+
+	return NULL;
 }
 
 
