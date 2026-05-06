@@ -1,0 +1,6 @@
+Amy Rodriguez-Paz
+1001705164
+
+All three programs have been tested in Codespaces, using string.txt and valgrind.
+Due to issues with pulling/pushing, I have opted to copy my work in codespaces and make new files directly for main.
+If any issues were to arise, it would come from non pushed code from Codespaces.
